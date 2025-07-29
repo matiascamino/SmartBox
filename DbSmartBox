@@ -1,0 +1,145 @@
+--
+-- PostgreSQL database dump
+--
+
+-- Dumped from database version 17.5
+-- Dumped by pg_dump version 17.5
+
+-- Started on 2025-07-28 22:09:26
+
+SET statement_timeout = 0;
+SET lock_timeout = 0;
+SET idle_in_transaction_session_timeout = 0;
+SET transaction_timeout = 0;
+SET client_encoding = 'UTF8';
+SET standard_conforming_strings = on;
+SELECT pg_catalog.set_config('search_path', '', false);
+SET check_function_bodies = false;
+SET xmloption = content;
+SET client_min_messages = warning;
+SET row_security = off;
+
+SET default_tablespace = '';
+
+SET default_table_access_method = heap;
+
+--
+-- TOC entry 218 (class 1259 OID 16451)
+-- Name: eventos; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.eventos (
+    id integer NOT NULL,
+    estado_cerrojo character varying(10),
+    estado_sensor character varying(20),
+    alarma boolean,
+    fecha timestamp without time zone DEFAULT CURRENT_TIMESTAMP
+);
+
+
+ALTER TABLE public.eventos OWNER TO postgres;
+
+--
+-- TOC entry 217 (class 1259 OID 16450)
+-- Name: eventos_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE public.eventos_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.eventos_id_seq OWNER TO postgres;
+
+--
+-- TOC entry 4905 (class 0 OID 0)
+-- Dependencies: 217
+-- Name: eventos_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE public.eventos_id_seq OWNED BY public.eventos.id;
+
+
+--
+-- TOC entry 220 (class 1259 OID 16459)
+-- Name: pin_auth; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.pin_auth (
+    id integer NOT NULL,
+    pin_hash text NOT NULL,
+    created_at timestamp without time zone DEFAULT now()
+);
+
+
+ALTER TABLE public.pin_auth OWNER TO postgres;
+
+--
+-- TOC entry 219 (class 1259 OID 16458)
+-- Name: pin_auth_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE public.pin_auth_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.pin_auth_id_seq OWNER TO postgres;
+
+--
+-- TOC entry 4906 (class 0 OID 0)
+-- Dependencies: 219
+-- Name: pin_auth_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE public.pin_auth_id_seq OWNED BY public.pin_auth.id;
+
+
+--
+-- TOC entry 4747 (class 2604 OID 16454)
+-- Name: eventos id; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.eventos ALTER COLUMN id SET DEFAULT nextval('public.eventos_id_seq'::regclass);
+
+
+--
+-- TOC entry 4749 (class 2604 OID 16462)
+-- Name: pin_auth id; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.pin_auth ALTER COLUMN id SET DEFAULT nextval('public.pin_auth_id_seq'::regclass);
+
+
+--
+-- TOC entry 4752 (class 2606 OID 16457)
+-- Name: eventos eventos_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.eventos
+    ADD CONSTRAINT eventos_pkey PRIMARY KEY (id);
+
+
+--
+-- TOC entry 4754 (class 2606 OID 16467)
+-- Name: pin_auth pin_auth_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.pin_auth
+    ADD CONSTRAINT pin_auth_pkey PRIMARY KEY (id);
+
+
+-- Completed on 2025-07-28 22:09:26
+
+--
+-- PostgreSQL database dump complete
+--
+
