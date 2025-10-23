@@ -49,8 +49,6 @@ body::before {
   100% { background-position: 100% 100%; }
 }
 
-
-
 @keyframes mover {
   0% { background-position: 0% 50%; }
   50% { background-position: 100% 50%; }
@@ -87,6 +85,20 @@ h1, h2, h3, h4, h5, h6, .title {
   width: 100%;
   max-width: 800px;
   margin: 1rem auto;
+}
+
+/* Efecto hover para los bloques */
+.bloque:hover {
+  box-shadow: 0 0 24px var(--accent);
+  transform: scale(1.02);
+  transition: box-shadow 0.3s, transform 0.3s;
+}
+
+/* Títulos de las cajas con color de acento */
+.caja h2 {
+  color: var(--accent);
+  font-weight: 700;
+  letter-spacing: 1px;
 }
 
 /* 🧱 Layout general */
@@ -192,6 +204,18 @@ h1, h2, h3, h4, h5, h6, .title {
   box-shadow: 0 0 18px var(--accent);
 }
 
+/* Sombra suave para los botones */
+button,
+.MuiButton-root {
+  box-shadow: 0 2px 8px rgba(0,255,178,0.12);
+  transition: box-shadow 0.2s, transform 0.2s;
+}
+button:hover,
+.MuiButton-root:hover {
+  box-shadow: 0 4px 16px rgba(0,255,178,0.22);
+  transform: scale(1.04);
+}
+
 /* 📊 Tabla MUI personalizada */
 .tabla-eventos-container {
   margin-top: 1rem;
@@ -231,6 +255,12 @@ h1, h2, h3, h4, h5, h6, .title {
 
 .tabla-eventos td.alarma-inactiva {
   color: #888 !important;
+}
+
+/* Filas alternas en la tabla de eventos */
+.MuiTableBody-root tr:nth-child(even),
+.tabla-eventos tr:nth-child(even) {
+  background-color: rgba(0,255,178,0.07);
 }
 
 /* ⏳ Loader simple (opcional) */
@@ -372,7 +402,7 @@ h1, h2, h3, h4, h5, h6, .title {
 }
 
 .logout-button {
-  position: absolute;
+  position: static;
   top: 24px;
   right: 32px;
   padding: 0.6rem 1.2rem;
@@ -391,4 +421,66 @@ h1, h2, h3, h4, h5, h6, .title {
   background: linear-gradient(90deg, #ff004c 0%, #ff6a89 100%);
   box-shadow: 0 4px 16px #ff004c55;
   transform: scale(1.07) translateY(-2px);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 1rem;
+  width: 100%;
+  margin-top: 20px;
+  margin-bottom: 1rem;
+  margin-right: 15px;
+}
+
+/* Mejora visual para los menús desplegables de filtros */
+.MuiPaper-root.MuiMenu-paper {
+  background-color: #23233a !important;
+  color: #E0E0E0 !important;
+}
+
+/* Mejora visual para los botones dentro de los menús desplegables de filtros */
+.MuiMenuItem-root {
+  background: transparent !important;
+  color: #E0E0E0 !important;
+  font-weight: 500;
+  font-size: 1rem;
+  border-radius: 6px;
+  margin: 2px 0;
+  transition: background 0.2s, color 0.2s;
+}
+
+.MuiMenuItem-root:hover,
+.Mui-selected,
+.MuiMenuItem-root.Mui-focusVisible {
+  background-color: #00FFB2 !important;
+  color: #22243a !important;
+}
+
+/* Mejora el borde y fondo del Select desplegado */
+.MuiInputBase-root,
+.MuiSelect-root {
+  background-color: #23233a !important;
+  color: #E0E0E0 !important;
+  border-radius: 8px !important;
+  border: 1px solid #00FFB2 !important;
+}
+
+/* Mejora el label del filtro */
+.MuiInputLabel-root {
+  color: #00FFB2 !important;
+  font-weight: 600;
+}
+
+.header-title {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: 2px;
+  font-family: 'Orbitron', Arial, sans-serif;
+  pointer-events: none;
 }
