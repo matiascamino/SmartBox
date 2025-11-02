@@ -13,7 +13,10 @@ Servo cerrojoServo;
 
 const int pinServo = 18;  
 const int pinSensor = 4;
-const int led = 23;
+
+const int ledRojo = 21;
+const int ledVerde = 2;
+
 const int buzzerPin = 19;
 
 const char* ssid = "iPhone de Matias";
@@ -116,25 +119,26 @@ void actualizarYEnviarEstado() {
     lastEstadoSensor = estadoSensor;
   }
 
-  // LED
+  // --------- NUEVA LÓGICA LED ---------
   static unsigned long ultimoParpadeo = 0;
-  static bool estadoLed = false;
+  static bool estadoRojo = false;
   unsigned long ahora = millis();
 
-  if (alarma) {
-    if (ahora - ultimoParpadeo >= 200) {
-      estadoLed = !estadoLed;
-      digitalWrite(led, estadoLed);
+  if (cerrojoAbierto) {
+    digitalWrite(ledVerde, HIGH);
+    digitalWrite(ledRojo, LOW);
+  } 
+  else if (alarma) {
+    if (ahora - ultimoParpadeo >= 300) {  // velocidad parpadeo
+      estadoRojo = !estadoRojo;
+      digitalWrite(ledRojo, estadoRojo);
       ultimoParpadeo = ahora;
     }
-  } else if (cerrojoAbierto) {
-    digitalWrite(led, HIGH);
-  } else {
-    if (ahora - ultimoParpadeo >= 1500) {
-      estadoLed = !estadoLed;
-      digitalWrite(led, estadoLed);
-      ultimoParpadeo = ahora;
-    }
+    digitalWrite(ledVerde, LOW);
+  } 
+  else {
+    digitalWrite(ledRojo, HIGH);
+    digitalWrite(ledVerde, LOW);
   }
 }
 
@@ -182,15 +186,14 @@ void handleCerrar() {
 }
 
 // ---------- DISPLAY ----------
-#define I2C_SDA 21
-#define I2C_SCL 22
+#define I2C_SDA 16
+#define I2C_SCL 17
 U8G2_SH1106_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, U8X8_PIN_NONE);
 
-// 🎬 función de desplazamiento de texto
 void scrollText(const char* msg, int y, int speedDelay) {
   u8g2.setFont(u8g2_font_ncenB14_tr);
   int textWidth = u8g2.getStrWidth(msg);
-
+ 
   if (textWidth <= 128) {
     u8g2.clearBuffer();
     int x = (128 - textWidth) / 2;
@@ -208,54 +211,33 @@ void scrollText(const char* msg, int y, int speedDelay) {
   }
 }
 
-void showTempMessage(const char* msg, int ms) {
-  scrollText(msg, 34, 20);
-  delay(ms);
-}
-
 void updateDisplay() {
   u8g2.clearBuffer();
+  u8g2.setFont(u8g2_font_ncenB08_tr);
+  u8g2.drawStr(0, 12, "SmartBox");
+  u8g2.setFont(u8g2_font_6x10_tr);
+  u8g2.drawStr(0, 28, "Entrada :");
 
-  if (modoConfig) {
-    u8g2.setFont(u8g2_font_ncenB08_tr);
-    u8g2.drawStr(0, 12, "CONFIGURACION");
-    u8g2.setFont(u8g2_font_6x10_tr);
-    u8g2.drawStr(0, 28, "Nuevo PIN:");
+  String toShow = entradaActual.length() ? entradaActual : "-";
+  u8g2.setFont(u8g2_font_ncenB14_tr);
+  int w = u8g2.getStrWidth(toShow.c_str());
+  int x = (128 - w) / 2; if (x < 0) x = 0;
+  u8g2.drawStr(x, 56, toShow.c_str());
 
-    String toShow = entradaActual;
-    if (toShow.length() == 0) toShow = "-";
-
-
-    u8g2.setFont(u8g2_font_ncenB14_tr);
-    int w = u8g2.getStrWidth(toShow.c_str());
-    int x = (128 - w) / 2; if (x < 0) x = 0;
-    u8g2.drawStr(x, 56, toShow.c_str());
-  } else {
-    u8g2.setFont(u8g2_font_ncenB08_tr);
-    u8g2.drawStr(0, 12, "SmartBox");
-    u8g2.setFont(u8g2_font_6x10_tr);
-    u8g2.drawStr(0, 28, "Entrada:");
-
-    String toShow = entradaActual.length() ? entradaActual : "-";
-
-   
-
-    u8g2.setFont(u8g2_font_ncenB14_tr);
-    int w = u8g2.getStrWidth(toShow.c_str());
-    int x = (128 - w) / 2; if (x < 0) x = 0;
-    u8g2.drawStr(x, 56, toShow.c_str());
-  }
   u8g2.sendBuffer();
 }
-
 
 // ---------- SETUP ----------
 void setup() {
   Serial.begin(115200);
   pinMode(pinSensor, INPUT);
-  pinMode(led, OUTPUT);
+  pinMode(ledRojo, OUTPUT);
+  pinMode(ledVerde, OUTPUT);
   pinMode(buzzerPin, OUTPUT);
   digitalWrite(buzzerPin, LOW);
+
+  digitalWrite(ledRojo, LOW);
+  digitalWrite(ledVerde, LOW);
 
   cerrojoServo.attach(pinServo);
   cerrojoServo.write(0);
