@@ -10,16 +10,24 @@ router.post('/', async (req, res) => {
 
   try {
     await pool.query(
-      // Agrega fecha por defecto si tu tabla lo permite
       'INSERT INTO eventos (numero_caja, estado_cerrojo, estado_sensor, alarma, origen) VALUES ($1, $2, $3, $4, $5)',
       [numero_caja, estado_cerrojo, estado_sensor, alarma, origen]
     );
 
     if (alarma === true || alarma === 'true') {
+      const mensajeAlarma = `Se ha detectado un evento de alarma en tu caja fuerte.\n
+Detalles del evento:\n
+- Estado del cerrojo: ${estado_cerrojo}\n
+- Estado del sensor: ${estado_sensor}\n
+- Origen del evento: ${origen}\n
+- Fecha y hora: ${new Date().toLocaleString()}\n
+\n
+¡Atención! La puerta ha sido abierta con el cerrojo cerrado. Revisa inmediatamente la caja fuerte.`;
+
       await enviarEmail(
         'matiascamino8@gmail.com',
         '⚠️ Alarma activada en la caja fuerte',
-        `Estado del cerrojo: ${estado_cerrojo}\nSensor: ${estado_sensor}\n¡Puerta abierta con cerrojo cerrado!`
+        mensajeAlarma
       );
     }
 
@@ -29,6 +37,7 @@ router.post('/', async (req, res) => {
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
+
 
 // GET /api/eventos
 router.get('/', async (req, res) => {

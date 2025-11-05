@@ -1,18 +1,30 @@
 import bcrypt from 'bcrypt';
-import { pool } from './db.js'; // asumimos que ya tenés un archivo db.js como te mostré antes
+import { pool } from './db.js';
 
-const insertarPin = async () => {
-  const pin = '123'; // PIN inicial
-  const hash = await bcrypt.hash(pin, 10);
+const usuarios = [
+  { nombre_usuario: 'usuario1', pin: '123', caja_asignada: 1, rol: 'usuario' },
+  { nombre_usuario: 'admin', pin: '123', caja_asignada: null, rol: 'admin' },
+];
 
+const insertarUsuarios = async () => {
   try {
-    await pool.query('INSERT INTO pin_auth (pin_hash) VALUES ($1)', [hash]);
-    console.log('✅ PIN insertado correctamente');
+    for (const u of usuarios) {
+      const hash = await bcrypt.hash(u.pin, 10);
+      const res = await pool.query(
+        `INSERT INTO usuarios (nombre_usuario, pin_hash, caja_asignada, rol, creado_en)
+         VALUES ($1, $2, $3, $4, NOW())
+         ON CONFLICT (nombre_usuario)
+         DO UPDATE SET pin_hash = EXCLUDED.pin_hash, caja_asignada = EXCLUDED.caja_asignada, rol = EXCLUDED.rol
+         RETURNING *`,
+        [u.nombre_usuario, hash, u.caja_asignada, u.rol]
+      );
+      console.log('Usuario insertado/actualizado:', res.rows[0]);
+    }
   } catch (error) {
-    console.error('❌ Error insertando PIN:', error);
+    console.error('Error insertando usuarios:', error);
   } finally {
     pool.end();
   }
 };
 
-insertarPin();
+insertarUsuarios();

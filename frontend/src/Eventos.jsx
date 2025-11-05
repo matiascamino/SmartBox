@@ -27,9 +27,10 @@ function Eventos({ onLogout }) {
   const [filtroCerrojo, setFiltroCerrojo] = useState('');
   const [filtroFecha, setFiltroFecha] = useState('');
   const [mostrarFiltros, setMostrarFiltros] = useState(false);
+  const [simulandoSensor, setSimulandoSensor] = useState(false);
 
-  const backendUrl = 'http://172.20.10.5:3000/api/eventos';
-  const esp32Url = 'http://172.20.10.7';
+  const backendUrl = 'http://172.20.10.3:3000/api/eventos';
+  const esp32Url = 'http://172.20.10.2';
 
   // Carga inicial de eventos
   useEffect(() => {
@@ -46,6 +47,7 @@ function Eventos({ onLogout }) {
     try {
       const res = await fetch(backendUrl);
       if (!res.ok) throw new Error('Backend no responde');
+
       const data = await res.json();
       setEventos(data);
       setLoading(false);
@@ -57,6 +59,7 @@ function Eventos({ onLogout }) {
   };
 
   const fetchCajaReal = async () => {
+    if (simulandoSensor) return; // ⛔ No pisar el estado simulado
     try {
       const res = await fetch(`${esp32Url}/estado?caja=1`);
       if (!res.ok) return;
@@ -73,15 +76,15 @@ function Eventos({ onLogout }) {
   useEffect(() => {
     const interval = setInterval(fetchCajaReal, 1000);
     return () => clearInterval(interval);
-  }, []); // <-- solo en el montaje
+  }, []);
 
   const enviarComando = async (comando, numeroCaja) => {
     const caja = cajas.find(c => c.numero === numeroCaja);
+    setSimulandoSensor(false);
 
     if (caja.real) {
       try {
         await fetch(`${esp32Url}/${comando}?caja=${numeroCaja}`);
-        // Registrar evento físico en backend
         const nuevoEstado = comando === 'abrir' ? 'abierto' : 'cerrado';
         await fetch(backendUrl, {
           method: 'POST',
@@ -89,7 +92,7 @@ function Eventos({ onLogout }) {
           body: JSON.stringify({
             numero_caja: numeroCaja,
             estado_cerrojo: nuevoEstado,
-            estado_sensor: caja.estado?.sensor ?? nuevoEstado,
+            estado_sensor: nuevoEstado, 
             alarma: caja.estado?.alarma ?? false,
             origen: 'admin',
           }),
@@ -103,7 +106,6 @@ function Eventos({ onLogout }) {
         setError('No se pudo comunicar con el ESP32');
       }
     } else {
-      // Caja ficticia: solo actualizar estado local
       const nuevoEstado = comando === 'abrir' ? 'abierto' : 'cerrado';
       setCajas(prev =>
         prev.map(c =>
@@ -117,7 +119,6 @@ function Eventos({ onLogout }) {
         )
       );
 
-      // Registrar evento ficticio en backend
       try {
         await fetch(backendUrl, {
           method: 'POST',
@@ -137,9 +138,7 @@ function Eventos({ onLogout }) {
     }
   };
 
-  // Filtrar eventos según los filtros seleccionados
-  const eventosFiltrados = eventos.filter(evento => {
-    // Convierte la fecha del evento a YYYY-MM-DD
+  let eventosFiltradosUI = eventos.filter(evento => {
     let eventoFechaStr = '-';
     if (evento.fecha) {
       const d = new Date(evento.fecha);
@@ -148,17 +147,19 @@ function Eventos({ onLogout }) {
       const dd = String(d.getDate()).padStart(2, '0');
       eventoFechaStr = `${yyyy}-${mm}-${dd}`;
     }
-    // Compara con el filtro
     const mismoDia = filtroFecha === '' || eventoFechaStr === filtroFecha;
 
     return (
       (filtroCaja === '' || evento.numero_caja === Number(filtroCaja)) &&
-      (filtroOrigen === '' || evento.origen === filtroOrigen) &&
+      (filtroOrigen === '' || evento.origen?.toLowerCase().trim() === filtroOrigen.toLowerCase().trim()) &&
       (filtroAlarma === '' || (filtroAlarma === 'true' ? evento.alarma : !evento.alarma)) &&
       (filtroCerrojo === '' || evento.estado_cerrojo === filtroCerrojo) &&
       mismoDia
     );
   });
+
+  eventosFiltradosUI.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+  eventosFiltradosUI = eventosFiltradosUI.slice(0, 50);
 
   if (loading) return (
     <div style={{ textAlign: 'center', marginTop: '2rem' }}>
@@ -199,8 +200,6 @@ function Eventos({ onLogout }) {
         {cajas.map((caja) => (
           <Box key={caja.numero} className="bloque caja" sx={{ flex: '1 1 300px', minWidth: 300 }}>
             <h2>Caja {caja.numero}</h2>
-
-            {/* Estado */}
             <Box className="bloque status" sx={{ mb: 2 }}>
               {caja.estado ? (
                 <>
@@ -212,8 +211,6 @@ function Eventos({ onLogout }) {
                 <p style={{ color: '#aaa' }}>Sin conexión con el dispositivo</p>
               )}
             </Box>
-
-            {/* Botones de control */}
             <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
               <Button
                 variant="contained"
@@ -233,6 +230,54 @@ function Eventos({ onLogout }) {
               >
                 Cerrar
               </Button>
+
+              {caja.numero === 1 && (
+                <Button
+                  variant="outlined"
+                  color={caja.estado?.sensor === 'abierto' ? 'error' : 'primary'}
+                  onClick={async () => {
+                    try {
+                      setSimulandoSensor(true);
+
+                      const nuevoSensor = caja.estado?.sensor === 'abierto' ? 'cerrado' : 'abierto';
+                      const alarmaActiva = caja.estado?.cerrojo === 'cerrado' && nuevoSensor === 'abierto';
+
+                      const nuevoEstado = { 
+                        ...caja.estado, 
+                        sensor: nuevoSensor, 
+                        alarma: alarmaActiva 
+                      };
+
+                      setCajas(prev =>
+                        prev.map(c =>
+                          c.numero === 1 ? { ...c, estado: nuevoEstado } : c
+                        )
+                      );
+
+                      await fetch(backendUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          numero_caja: 1,
+                          estado_cerrojo: nuevoEstado.cerrojo,
+                          estado_sensor: nuevoEstado.sensor,
+                          alarma: nuevoEstado.alarma,
+                          origen: 'admin',
+                        }),
+                      });
+
+                      fetchEventos();
+
+                    } catch (err) {
+                      console.error(err);
+                      setError('No se pudo simular el sensor');
+                    }
+                  }}
+                >
+                  {caja.estado?.sensor === 'abierto' ? 'Cerrar puerta (SIMULADO)' : 'Abrir puerta (SIMULADO)'}
+                </Button>
+              )}
+
             </Box>
           </Box>
         ))}
@@ -240,7 +285,6 @@ function Eventos({ onLogout }) {
 
       <div className="bloque eventos" style={{ maxWidth: 800, margin: '2rem auto 0 auto' }}>
         <h3>Todos los eventos</h3>
-        {/* Botón para mostrar/ocultar filtros */}
         <Button
           variant="outlined"
           color="primary"
@@ -251,7 +295,6 @@ function Eventos({ onLogout }) {
         </Button>
         <Collapse in={mostrarFiltros}>
           <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
-            {/* Filtro por fecha */}
             <FormControl size="small" style={{ minWidth: 160 }}>
               <InputLabel shrink htmlFor="filtro-fecha">Fecha</InputLabel>
               <input
@@ -326,7 +369,7 @@ function Eventos({ onLogout }) {
             </FormControl>
           </div>
         </Collapse>
-        {/* Tabla filtrada */}
+
         <TableContainer component={Paper}>
           <Table size="small">
             <TableHead>
@@ -340,7 +383,7 @@ function Eventos({ onLogout }) {
               </TableRow>
             </TableHead>
             <TableBody>
-              {eventosFiltrados.map((evento, idx) => (
+              {eventosFiltradosUI.map((evento, idx) => (
                 <TableRow key={idx}>
                   <TableCell>{evento.fecha ? new Date(evento.fecha).toLocaleString() : '-'}</TableCell>
                   <TableCell>{evento.numero_caja ?? '-'}</TableCell>
@@ -359,8 +402,5 @@ function Eventos({ onLogout }) {
     </div>
   );
 }
-
-
-
 
 export default Eventos;

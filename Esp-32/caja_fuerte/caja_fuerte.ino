@@ -13,20 +13,20 @@ Servo cerrojoServo;
 
 const int pinServo = 18;  
 const int pinSensor = 4;
-
-const int ledRojo = 21;
-const int ledVerde = 2;
-
+const int ledRojo = 5;
+const int ledVerde = 15;
 const int buzzerPin = 19;
 
 const char* ssid = "iPhone de Matias";
 const char* password = "matias06";
-const char* backendUrl = "http://172.20.10.5:3000/api/eventos";
+const char* backendUrl = "http://172.20.10.3:3000/api/eventos";
 
 bool cerrojoAbierto = false;
 bool lastCerrojoAbierto = false;
 bool lastAlarmaPuertaAbierta = false;
 int lastEstadoSensor = LOW;
+bool sensorSimuladoAbierto = false;  // <-- SIMULACIÓN DE SENSOR
+bool simulandoSensor = false; // ← AGREGAR ESTO
 
 unsigned long ultimoMovimiento = 0;
 const unsigned long intervalo = 1000;
@@ -52,74 +52,65 @@ String entradaActual = "";
 bool modoConfig = false;
 
 // ---------- BUZZER ----------
-void beepCorto() {
-  digitalWrite(buzzerPin, HIGH); delay(100); digitalWrite(buzzerPin, LOW);
-}
-void beepMedio() {
-  digitalWrite(buzzerPin, HIGH); delay(300); digitalWrite(buzzerPin, LOW);
-}
-void beepError() {
-  for(int i = 0; i < 3; i++){
-    digitalWrite(buzzerPin, HIGH); delay(150);
-    digitalWrite(buzzerPin, LOW); delay(150);
-  }
-}
-void melodiaDesbloqueo() {
-  const int pattern[] = {120,120,180,240};
-  for (int i = 0; i < 4; i++) {
-    digitalWrite(buzzerPin, HIGH);
-    delay(pattern[i]);
-    digitalWrite(buzzerPin, LOW);
-    delay(70);
-  }
-}
+void beepCorto() { digitalWrite(buzzerPin, HIGH); delay(100); digitalWrite(buzzerPin, LOW); }
+void beepMedio() { digitalWrite(buzzerPin, HIGH); delay(300); digitalWrite(buzzerPin, LOW); }
+void beepError() { for(int i = 0; i < 3; i++){ digitalWrite(buzzerPin, HIGH); delay(150); digitalWrite(buzzerPin, LOW); delay(150); } }
+void melodiaDesbloqueo() { const int pattern[] = {120,120,180,240}; for (int i = 0; i < 4; i++) { digitalWrite(buzzerPin, HIGH); delay(pattern[i]); digitalWrite(buzzerPin, LOW); delay(70); } }
 
-// ---------- SENSOR ----------
+// ---------- SENSOR SIMULADO ----------
 bool leerSensorFiltrado() {
-  int suma = 0;
-  for (int i = 0; i < 10; i++) { suma += digitalRead(pinSensor); delay(1); }
-  return (suma <= 3);
+  if (sensorSimuladoAbierto) return false;  // puerta ABIERTA simulada
+  return true; // si no se simula → puerta cerrada
 }
 
-// ---------- ENVÍO AL BACKEND ----------
-void enviarEvento(String estadoCerrojo, String estadoSensor, bool alarma) {
+// ---------- ENVIAR EVENTO AL BACKEND ----------
+void enviarEvento(String estadoCerrojo, String estadoSensor, bool alarma, String origen) {
   if (WiFi.status() == WL_CONNECTED) {
     HTTPClient http;
     http.begin(backendUrl);
     http.addHeader("Content-Type", "application/json");
+
     String body = "{\"numero_caja\":1"
                   ",\"estado_cerrojo\":\"" + estadoCerrojo +
                   "\",\"estado_sensor\":\"" + estadoSensor +
                   "\",\"alarma\":" + (alarma ? "true" : "false") +
-                  ",\"origen\":\"Usuario1\"}";
+                  ",\"origen\":\"" + origen + "\"}";
+
     int httpResponseCode = http.POST(body);
     Serial.print("Evento enviado, respuesta HTTP: ");
     Serial.println(httpResponseCode);
     http.end();
-  } else Serial.println("No conectado al WiFi");
+  } else {
+    Serial.println("No conectado al WiFi");
+  }
 }
 
-void actualizarYEnviarEstado() {
-  bool sensorDetectaIman = leerSensorFiltrado();
-  bool alarma = (!cerrojoAbierto && !sensorDetectaIman);
-  int estadoSensor = sensorDetectaIman ? HIGH : LOW;
 
-  if (cerrojoAbierto != lastCerrojoAbierto ||
-      alarma != lastAlarmaPuertaAbierta ||
-      estadoSensor != lastEstadoSensor) {
 
-    enviarEvento(
-      cerrojoAbierto ? "abierto" : "cerrado",
-      sensorDetectaIman ? "imán detectado" : "sin imán",
-      alarma
-    );
+// ---------- ACTUALIZAR ESTADO ----------
+void actualizarYEnviarEstado(String origenEvento = "usuario1") {
+    bool sensorDetectaIman = leerSensorFiltrado();
+    bool alarma = (!cerrojoAbierto && !sensorDetectaIman);
+    int estadoSensor = sensorDetectaIman ? HIGH : LOW;
 
-    lastCerrojoAbierto = cerrojoAbierto;
-    lastAlarmaPuertaAbierta = alarma;
-    lastEstadoSensor = estadoSensor;
-  }
+    // Solo enviar evento si hay cambio
+    if (cerrojoAbierto != lastCerrojoAbierto ||
+        alarma != lastAlarmaPuertaAbierta ||
+        estadoSensor != lastEstadoSensor) {
 
-  // --------- NUEVA LÓGICA LED ---------
+        enviarEvento(
+            cerrojoAbierto ? "abierto" : "cerrado",
+            sensorDetectaIman ? "imán detectado" : "sin imán",
+            alarma,
+            origenEvento    // ← aquí usamos el valor que venga
+        );
+
+        lastCerrojoAbierto = cerrojoAbierto;
+        lastAlarmaPuertaAbierta = alarma;
+        lastEstadoSensor = estadoSensor;
+    }
+
+  // ---------- LEDS ----------
   static unsigned long ultimoParpadeo = 0;
   static bool estadoRojo = false;
   unsigned long ahora = millis();
@@ -129,11 +120,11 @@ void actualizarYEnviarEstado() {
     digitalWrite(ledRojo, LOW);
   } 
   else if (alarma) {
-    if (ahora - ultimoParpadeo >= 300) {  // velocidad parpadeo
-      estadoRojo = !estadoRojo;
-      digitalWrite(ledRojo, estadoRojo);
-      ultimoParpadeo = ahora;
+    if (ahora - ultimoParpadeo >= 300) { 
+      estadoRojo = !estadoRojo; 
+      ultimoParpadeo = ahora; 
     }
+    digitalWrite(ledRojo, estadoRojo);
     digitalWrite(ledVerde, LOW);
   } 
   else {
@@ -143,47 +134,39 @@ void actualizarYEnviarEstado() {
 }
 
 // ---------- CERROJO ----------
-void abrirCerrojo() {
-  cerrojoServo.write(90);
-  cerrojoAbierto = true;
-  ultimoMovimiento = millis();
-  Serial.println("Cerrojo ABIERTO");
-  beepMedio();
-  melodiaDesbloqueo();
-}
-void cerrarCerrojo() {
-  cerrojoServo.write(0);
-  cerrojoAbierto = false;
-  ultimoMovimiento = millis();
-  Serial.println("Cerrojo CERRADO");
-  beepMedio();
-}
+void abrirCerrojo() { cerrojoServo.write(90); cerrojoAbierto = true; beepMedio(); melodiaDesbloqueo(); }
+void cerrarCerrojo() { cerrojoServo.write(0); cerrojoAbierto = false; beepMedio(); }
 
-// ---------- WEB ----------
+// ---------- ENDPOINTS ----------
 void handleEstado() {
   webServer.sendHeader("Access-Control-Allow-Origin", "*");
   bool sensorDetectaIman = leerSensorFiltrado();
   bool alarma = (!cerrojoAbierto && !sensorDetectaIman);
-
   String json = "{\"cerrojo\":\"" + String(cerrojoAbierto ? "abierto" : "cerrado") +
                 "\",\"sensor\":\"" + String(sensorDetectaIman ? "imán detectado" : "sin imán") +
                 "\",\"alarma\":" + (alarma ? "true" : "false") + "}";
   webServer.send(200, "application/json", json);
 }
-void handleAbrir() {
-  if (!cerrojoAbierto && (millis() - ultimoMovimiento > intervalo)) {
-    abrirCerrojo(); actualizarYEnviarEstado();
-  }
-  webServer.sendHeader("Access-Control-Allow-Origin", "*");
-  webServer.send(200, "text/plain", "Cerrojo abierto");
+
+void handleAbrir() { 
+  abrirCerrojo(); 
+  String origen = webServer.arg("origen"); // se puede mandar desde la web
+  if (origen == "") origen = "admin"; // default admin si no envían nada
+  actualizarYEnviarEstado(origen);
+  webServer.send(200, "text/plain", "Cerrojo abierto"); 
 }
-void handleCerrar() {
-  if (cerrojoAbierto && (millis() - ultimoMovimiento > intervalo)) {
-    cerrarCerrojo(); actualizarYEnviarEstado();
-  }
-  webServer.sendHeader("Access-Control-Allow-Origin", "*");
-  webServer.send(200, "text/plain", "Cerrojo cerrado");
+
+void handleCerrar() { 
+  cerrarCerrojo(); 
+  String origen = webServer.arg("origen");
+  if (origen == "") origen = "admin";
+  actualizarYEnviarEstado(origen);
+  webServer.send(200, "text/plain", "Cerrojo cerrado"); 
 }
+
+
+void handleSimularAlarma() { sensorSimuladoAbierto = true; webServer.send(200, "text/plain", "Puerta abierta (SIMULADA)"); }
+void handleResetAlarma() { sensorSimuladoAbierto = false; webServer.send(200, "text/plain", "Puerta cerrada (SIMULADA)"); }
 
 // ---------- DISPLAY ----------
 #define I2C_SDA 16
@@ -193,37 +176,17 @@ U8G2_SH1106_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, U8X8_PIN_NONE);
 void scrollText(const char* msg, int y, int speedDelay) {
   u8g2.setFont(u8g2_font_ncenB14_tr);
   int textWidth = u8g2.getStrWidth(msg);
- 
-  if (textWidth <= 128) {
-    u8g2.clearBuffer();
-    int x = (128 - textWidth) / 2;
-    u8g2.drawStr(x, y, msg);
-    u8g2.sendBuffer();
-    delay(1000);
-    return;
-  }
-
-  for (int x = 128; x > -textWidth; x--) {
-    u8g2.clearBuffer();
-    u8g2.drawStr(x, y, msg);
-    u8g2.sendBuffer();
-    delay(speedDelay);
-  }
+  if (textWidth <= 128) { u8g2.clearBuffer(); u8g2.drawStr((128 - textWidth)/2, y, msg); u8g2.sendBuffer(); delay(1000); return; }
+  for (int x = 128; x > -textWidth; x--) { u8g2.clearBuffer(); u8g2.drawStr(x, y, msg); u8g2.sendBuffer(); delay(speedDelay); }
 }
 
 void updateDisplay() {
   u8g2.clearBuffer();
-  u8g2.setFont(u8g2_font_ncenB08_tr);
-  u8g2.drawStr(0, 12, "SmartBox");
-  u8g2.setFont(u8g2_font_6x10_tr);
-  u8g2.drawStr(0, 28, "Entrada :");
-
+  u8g2.setFont(u8g2_font_ncenB08_tr); u8g2.drawStr(0, 12, "SmartBox");
+  u8g2.setFont(u8g2_font_6x10_tr); u8g2.drawStr(0, 28, "Entrada :");
   String toShow = entradaActual.length() ? entradaActual : "-";
-  u8g2.setFont(u8g2_font_ncenB14_tr);
-  int w = u8g2.getStrWidth(toShow.c_str());
-  int x = (128 - w) / 2; if (x < 0) x = 0;
-  u8g2.drawStr(x, 56, toShow.c_str());
-
+  u8g2.setFont(u8g2_font_ncenB14_tr); int w = u8g2.getStrWidth(toShow.c_str());
+  int x = (128 - w) / 2; u8g2.drawStr(x, 56, toShow.c_str());
   u8g2.sendBuffer();
 }
 
@@ -231,26 +194,20 @@ void updateDisplay() {
 void setup() {
   Serial.begin(115200);
   pinMode(pinSensor, INPUT);
-  pinMode(ledRojo, OUTPUT);
-  pinMode(ledVerde, OUTPUT);
-  pinMode(buzzerPin, OUTPUT);
-  digitalWrite(buzzerPin, LOW);
-
-  digitalWrite(ledRojo, LOW);
-  digitalWrite(ledVerde, LOW);
+  pinMode(ledRojo, OUTPUT); pinMode(ledVerde, OUTPUT); pinMode(buzzerPin, OUTPUT);
 
   cerrojoServo.attach(pinServo);
   cerrojoServo.write(0);
 
   WiFi.begin(ssid, password);
-  Serial.print("Conectando a WiFi: "); Serial.println(ssid);
-  if (WiFi.waitForConnectResult() == WL_CONNECTED)
-    Serial.println(WiFi.localIP());
-  else Serial.println("No se pudo conectar al WiFi");
+  WiFi.waitForConnectResult();
+  Serial.println(WiFi.localIP());
 
-  webServer.on("/estado", HTTP_GET, handleEstado);
-  webServer.on("/abrir", HTTP_GET, handleAbrir);
-  webServer.on("/cerrar", HTTP_GET, handleCerrar);
+  webServer.on("/estado", handleEstado);
+  webServer.on("/abrir", handleAbrir);
+  webServer.on("/cerrar", handleCerrar);
+  webServer.on("/simularAlarma", handleSimularAlarma);
+  webServer.on("/resetAlarma", handleResetAlarma);
   webServer.begin();
 
   Wire.begin(I2C_SDA, I2C_SCL);
@@ -260,59 +217,30 @@ void setup() {
 
 // ---------- LOOP ----------
 void loop() {
-  if (WiFi.status() != WL_CONNECTED && millis() - ultimoIntentoWiFi > intervaloWiFi) {
-    WiFi.begin(ssid, password);
-    ultimoIntentoWiFi = millis();
-  }
-
+  if (WiFi.status() != WL_CONNECTED && millis() - ultimoIntentoWiFi > intervaloWiFi) { WiFi.begin(ssid, password); ultimoIntentoWiFi = millis(); }
   actualizarYEnviarEstado();
   webServer.handleClient();
 
   char key = keypad.getKey();
-  if (key) {
-    Serial.println(key);
-    beepCorto();
+  if (!key) return;
 
-    if (!modoConfig) {
-      if (isdigit(key)) { entradaActual += key; updateDisplay(); }
-      else if (key == '*') { entradaActual = ""; updateDisplay(); }
-      else if (key == '#') {
-        if (entradaActual == contraseñaUsuario) {
-          abrirCerrojo();
-          scrollText("DESBLOQUEADO", 34, 3);
-          entradaActual = "";
-          updateDisplay();
-        } else {
-          beepError();
-          scrollText("ERROR", 34, 5);
-          updateDisplay();
-        }
-        entradaActual = "";
-      } else if (key == 'A' && cerrojoAbierto) {
-        modoConfig = true;
-        entradaActual = "";
-        scrollText("CONFIGURACION", 34, 3);
-        updateDisplay();
-      } else if (key == 'C' && cerrojoAbierto) {
-        cerrarCerrojo();
-        actualizarYEnviarEstado();
-        updateDisplay();
-      }
-    } else {
-      if (isdigit(key)) { entradaActual += key; updateDisplay(); }
-      else if (key == '*') {
-        entradaActual = "";
-        modoConfig = false;
-        scrollText("CANCELADO", 34, 3);
-        updateDisplay();
-      } else if (key == '#') {
-        contraseñaUsuario = entradaActual;
-        modoConfig = false;
-        cerrarCerrojo();
-        entradaActual = "";
-        scrollText("PIN GUARDADO", 34, 3);
-        updateDisplay();
-      }
+  beepCorto();
+  Serial.println(key);
+
+  if (!modoConfig) {
+    if (isdigit(key)) { entradaActual += key; updateDisplay(); }
+    else if (key == '*') { entradaActual = ""; updateDisplay(); }
+    else if (key == '#') {
+      if (entradaActual == contraseñaUsuario) { abrirCerrojo(); scrollText("UNLOCK", 34, 1); }
+      else { beepError(); scrollText("ERROR", 34, 2); }
+      entradaActual = ""; updateDisplay();
     }
+    else if (key == 'A' && cerrojoAbierto) { modoConfig = true; entradaActual = ""; scrollText("CONF", 34, 1); updateDisplay(); }
+    else if (key == 'C' && cerrojoAbierto) { cerrarCerrojo(); updateDisplay(); }
+  } 
+  else {
+    if (isdigit(key)) { entradaActual += key; updateDisplay(); }
+    else if (key == '*') { entradaActual = ""; modoConfig = false; scrollText("CANC", 34, 1); updateDisplay(); }
+    else if (key == '#') { contraseñaUsuario = entradaActual; modoConfig = false; cerrarCerrojo(); entradaActual = ""; scrollText("PIN OK", 34, 1); updateDisplay(); }
   }
 }

@@ -1,51 +1,36 @@
 import { Router } from 'express';
 import bcrypt from 'bcrypt';
-import { pool } from '../db.js'; 
+import { pool } from '../db.js';
 
 const router = Router();
 
-// Obtener el hash actual del PIN
-async function getPinHash() {
-  const res = await pool.query('SELECT pin_hash FROM pin_auth ORDER BY id DESC LIMIT 1');
-  if (res.rows.length === 0) return null;
-  return res.rows[0].pin_hash;
+// Función auxiliar: obtiene el hash del PIN de un usuario
+async function getPinHash(nombre_usuario) {
+  const result = await pool.query(
+    'SELECT pin_hash FROM usuarios WHERE nombre_usuario = $1',
+    [nombre_usuario]
+  );
+  return result.rows[0]?.pin_hash || null;
 }
 
-// Ruta POST para validar PIN
-router.post('/login-pin', async (req, res) => {
-  const { pin } = req.body;
-  if (!pin) return res.status(400).json({ error: 'Falta PIN' });
 
-  try {
-    const hash = await getPinHash();
-    if (!hash) return res.status(500).json({ error: 'PIN no configurado' });
-
-    const valid = await bcrypt.compare(pin, hash);
-    if (valid) {
-      return res.json({ success: true });
-    } else {
-      return res.status(401).json({ error: 'PIN incorrecto' });
-    }
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Error interno' });
-  }
-});
-
-// Ruta POST para cambiar PIN (requiere oldPin y newPin)
+// Ruta POST para cambiar PIN de un usuario
 router.post('/change-pin', async (req, res) => {
-  const { oldPin, newPin } = req.body;
-  if (!oldPin || !newPin) return res.status(400).json({ error: 'Faltan datos' });
+  const { nombre_usuario, oldPin, newPin } = req.body;
+  if (!nombre_usuario || !oldPin || !newPin) return res.status(400).json({ error: 'Faltan datos' });
 
   try {
-    const hash = await getPinHash();
-    if (!hash) return res.status(500).json({ error: 'PIN no configurado' });
+    const hash = await getPinHash(nombre_usuario);
+    if (!hash) return res.status(401).json({ error: 'Usuario no encontrado o PIN no configurado' });
 
     const valid = await bcrypt.compare(oldPin, hash);
     if (!valid) return res.status(401).json({ error: 'PIN antiguo incorrecto' });
 
     const newHash = await bcrypt.hash(newPin, 10);
-    await pool.query('INSERT INTO pin_auth (pin_hash) VALUES ($1)', [newHash]);
+    await pool.query(
+      'UPDATE usuarios SET pin_hash = $1 WHERE nombre_usuario = $2',
+      [newHash, nombre_usuario]
+    );
 
     return res.json({ success: true, message: 'PIN cambiado correctamente' });
   } catch (error) {
@@ -53,5 +38,37 @@ router.post('/change-pin', async (req, res) => {
     res.status(500).json({ error: 'Error interno' });
   }
 });
+
+// Ruta POST para validar PIN y devolver rol y caja asignada
+router.post('/login-pin', async (req, res) => {
+  const { nombre_usuario, pin } = req.body;
+  if (!nombre_usuario || !pin) return res.status(400).json({ error: 'Faltan datos' });
+
+  try {
+    const result = await pool.query(
+      'SELECT pin_hash, rol, caja_asignada FROM usuarios WHERE nombre_usuario = $1',
+      [nombre_usuario]
+    );
+
+    if (result.rows.length === 0)
+      return res.status(401).json({ error: 'Usuario no encontrado' });
+
+    const { pin_hash, rol, caja_asignada } = result.rows[0];
+
+    const valid = await bcrypt.compare(pin, pin_hash);
+    if (!valid) return res.status(401).json({ error: 'PIN incorrecto' });
+
+    return res.json({
+      success: true,
+      usuario: nombre_usuario,
+      rol,            // admin o user
+      caja_asignada
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error interno' });
+  }
+});
+
 
 export default router;

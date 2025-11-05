@@ -15,7 +15,7 @@ const style = {
   display: 'flex',
   flexDirection: 'column',
   gap: 2,
-  fontFamily: "'Orbitron', Arial, sans-serif", // Aplica Orbitron al modal
+  fontFamily: "'Orbitron', Arial, sans-serif",
 }
 
 export default function ChangePinModal() {
@@ -39,22 +39,26 @@ export default function ChangePinModal() {
     setError(null)
     setSuccess(null)
 
-    // Validaciones básicas
     if (oldPin.length === 0 || newPin.length === 0) {
       setError('Por favor completa ambos campos')
       return
     }
 
+    const nombreUsuario = localStorage.getItem('usuario')
+    if (!nombreUsuario) {
+      setError('Usuario no encontrado. Por favor inicia sesión de nuevo.')
+      return
+    }
+
     try {
-      // Aquí harías el fetch a tu backend para cambiar el PIN
-      const res = await fetch('http://localhost:3000/api/auth/change-pin', {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/change-pin`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ oldPin, newPin }),
+        body: JSON.stringify({ nombre_usuario: nombreUsuario, oldPin, newPin }),
       })
       const data = await res.json()
 
-      if (!res.ok) throw new Error(data.message || 'Error al cambiar PIN')
+      if (!res.ok) throw new Error(data.error || 'Error al cambiar PIN')
 
       setSuccess('PIN cambiado con éxito')
       setOldPin('')
@@ -68,7 +72,6 @@ export default function ChangePinModal() {
     <>
       <Button
         variant="contained"
-        className="button-glow"
         style={{
           backgroundColor: 'var(--accent)',
           color: '#000',
@@ -83,9 +86,9 @@ export default function ChangePinModal() {
         Cambiar PIN
       </Button>
 
-      <Modal open={open} onClose={handleClose} aria-labelledby="modal-cambiar-pin">
+      <Modal open={open} onClose={handleClose}>
         <Box sx={style} component="form" onSubmit={handleSubmit}>
-          <Typography variant="h6" component="h2" mb={2} sx={{ fontFamily: "'Orbitron', Arial, sans-serif" }}>
+          <Typography variant="h6" mb={2}>
             Cambiar PIN
           </Typography>
 
@@ -96,16 +99,8 @@ export default function ChangePinModal() {
             value={oldPin}
             onChange={e => setOldPin(e.target.value)}
             required
-            inputProps={{
-              maxLength: 10,
-              style: { fontFamily: "'Orbitron', Arial, sans-serif", color: '#fff' }
-            }}
-            InputLabelProps={{
-              style: { color: '#fff' }
-            }}
             fullWidth
           />
-
           <TextField
             label="Nuevo PIN"
             variant="filled"
@@ -113,47 +108,13 @@ export default function ChangePinModal() {
             value={newPin}
             onChange={e => setNewPin(e.target.value)}
             required
-            inputProps={{
-              maxLength: 10,
-              style: { fontFamily: "'Orbitron', Arial, sans-serif", color: '#fff' }
-            }}
-            InputLabelProps={{
-              style: { color: '#fff' }
-            }}
             fullWidth
           />
 
-          {error && (
-            <Typography color="error" variant="body2" mt={1} sx={{ fontFamily: "'Orbitron', Arial, sans-serif" }}>
-              {error}
-            </Typography>
-          )}
+          {error && <Typography color="error" mt={1}>{error}</Typography>}
+          {success && <Typography color="success.main" mt={1}>{success}</Typography>}
 
-          {success && (
-            <Typography color="success.main" variant="body2" mt={1} sx={{ fontFamily: "'Orbitron', Arial, sans-serif" }}>
-              {success}
-            </Typography>
-          )}
-
-          <Button
-            type="submit"
-            variant="contained"
-            className="button-glow"
-            sx={{
-              mt: 2,
-              backgroundColor: 'var(--accent)',
-              color: '#000',
-              fontWeight: 'bold',
-              boxShadow: '0 0 12px var(--accent)',
-              borderRadius: 2,
-              letterSpacing: 1,
-              fontFamily: "'Orbitron', Arial, sans-serif",
-              '&:hover': {
-                backgroundColor: '#00e5a0',
-                boxShadow: '0 0 18px var(--accent)',
-              },
-            }}
-          >
+          <Button type="submit" variant="contained" sx={{ mt: 2 }}>
             Cambiar
           </Button>
         </Box>
