@@ -103,7 +103,11 @@ void actualizarYEnviarEstado(String origenEvento = "usuario1") {
             sensorDetectaIman ? "imán detectado" : "sin imán",
             alarma,
             origenEvento    // ← aquí usamos el valor que venga
-        );
+
+             );
+
+        if (cerrojoAbierto && origenEvento != "keypad") scrollText("UNLOCK", 34, 1);
+        if (!cerrojoAbierto && origenEvento != "keypad") scrollText("LOCK", 34, 1);
 
         lastCerrojoAbierto = cerrojoAbierto;
         lastAlarmaPuertaAbierta = alarma;
